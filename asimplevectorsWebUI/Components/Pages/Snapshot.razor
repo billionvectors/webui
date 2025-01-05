@@ -1,0 +1,173 @@
+@page "/snapshots"
+@rendermode RenderMode.InteractiveServer
+@inject asimplevectors.Services.asimplevectorsClient Client
+@inject ILogger<Snapshot> Logger
+@inject IJSRuntime JSRuntime
+@using System.IO
+@using System.IO.Compression
+
+<PageTitle>Snapshots</PageTitle>
+
+<h1>Snapshots</h1>
+
+<p>This component demonstrates managing snapshots.</p>
+
+<button class="btn btn-primary mb-3" @onclick="ShowCreateSnapshotModal">Create Snapshot</button>
+
+@if (snapshots == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>File Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var snapshot in snapshots)
+            {
+                <tr>
+                    <td>
+                        <a href="#" @onclick="() => DownloadSnapshot(snapshot.Date, snapshot.FileName)">@snapshot.FileName</a>
+                    </td>
+                    <td>
+                        <button class="btn btn-success btn-sm" @onclick="() => RestoreSnapshot(snapshot.Date)">Restore</button>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteSnapshot(snapshot.Date)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showCreateSnapshotModal)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Snapshot</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateSnapshotModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @onclick="CreateSnapshot">Create</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCreateSnapshotModal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<asimplevectors.Models.SnapshotInfo>? snapshots;
+    private bool showCreateSnapshotModal = false;
+    private asimplevectors.Models.CreateSnapshotRequest newSnapshot = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSnapshotsAsync();
+    }
+
+    private async Task LoadSnapshotsAsync()
+    {
+        try
+        {
+            var response = await Client.ListSnapshotsAsync();
+            snapshots = response.Snapshots.ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error loading snapshots: {ex.Message}");
+        }
+    }
+
+    private async Task ShowCreateSnapshotModal()
+    {
+        Logger.LogInformation("ShowCreateSnapshotModal called.");
+        showCreateSnapshotModal = true;
+        newSnapshot = new asimplevectors.Models.CreateSnapshotRequest();
+        StateHasChanged();
+    }
+
+    private async Task CloseCreateSnapshotModal()
+    {
+        Logger.LogInformation("CloseCreateSnapshotModal called.");
+        showCreateSnapshotModal = false;
+        StateHasChanged();
+    }
+
+    private async Task CreateSnapshot()
+    {
+        try
+        {
+            Logger.LogInformation($"Creating snapshot");
+            await Client.CreateSnapshotAsync(new asimplevectors.Models.CreateSnapshotRequest());
+            await LoadSnapshotsAsync();
+            CloseCreateSnapshotModal();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error creating snapshot: {ex.Message}");
+        }
+    }
+
+    private async Task RestoreSnapshot(string date)
+    {
+        try
+        {
+            Logger.LogInformation($"Restoring snapshot: {date}");
+            await Client.RestoreSnapshotAsync(date);
+            await LoadSnapshotsAsync();
+            StateHasChanged();
+            Logger.LogInformation("Snapshot restored successfully.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error restoring snapshot: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteSnapshot(string date)
+    {
+        if (await ConfirmAsync($"Are you sure you want to delete the snapshot with file name '{date}'?"))
+        {
+            try
+            {
+                Logger.LogInformation($"Deleting snapshot: {date}");
+                await Client.DeleteSnapshotAsync(date);
+                await LoadSnapshotsAsync();
+                StateHasChanged();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error deleting snapshot: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task<bool> ConfirmAsync(string message)
+    {
+        Logger.LogInformation($"Confirmation requested: {message}");
+        return await Task.FromResult(true);
+    }
+
+    private async Task DownloadSnapshot(string date, string fileName)
+    {
+        try
+        {
+            Logger.LogInformation($"Downloading snapshot: {date}");
+            var stream = await Client.DownloadSnapshotAsync(date);
+            var dotNetStreamReference = new DotNetStreamReference(stream);
+            await JSRuntime.InvokeVoidAsync("downloadFileFromStream", fileName, dotNetStreamReference);
+            Logger.LogInformation("Snapshot downloaded successfully.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error downloading snapshot: {ex.Message}");
+        }
+    }
+}

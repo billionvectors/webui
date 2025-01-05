@@ -1,0 +1,63 @@
+﻿@namespace asimplevectorsWebUI.Components.Layout
+@inject NavigationManager NavigationManager
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">asimplevectorsWebUI</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Spaces
+            </NavLink>
+        </div>
+        
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="snapshots">
+                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Snapshot
+            </NavLink>
+        </div>
+
+        @if (IsSpacePage)
+        {
+            <div class="nav-item px-3">
+                <span class="nav-link disabled">@spaceName</span>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="@($"/space/{spaceName}/version")">
+                    <span class="bi" aria-hidden="true"></span> Version
+                </NavLink>
+            </div>
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="@($"/space/{spaceName}/keyvalue")">
+                    <span class="bi" aria-hidden="true"></span> KeyValue
+                </NavLink>
+            </div>
+
+            @if (IsVersionPage)
+            {
+                <div class="nav-item px-3">
+                    <span class="nav-link disabled">#@versionId</span>
+                </div>
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link" href="@($"/space/{spaceName}/version/{versionId}/vector")">
+                        <span class="bi" aria-hidden="true"></span> Vectors
+                    </NavLink>
+                </div>
+            }
+        }
+    </nav>
+</div>
+
+@code {
+    private bool IsSpacePage => NavigationManager.Uri.Contains("/space/");
+    private bool IsVersionPage => NavigationManager.Uri.Contains("/version/");
+    private string spaceName => NavigationManager.Uri.Split("/").SkipWhile(segment => segment != "space").Skip(1).FirstOrDefault() ?? string.Empty;
+    private int versionId => int.TryParse(NavigationManager.Uri.Split("/").SkipWhile(segment => segment != "version").Skip(1).FirstOrDefault(), out var id) ? id : 0;
+}
+

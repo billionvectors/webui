@@ -1,0 +1,199 @@
+﻿@page "/"
+@rendermode RenderMode.InteractiveServer
+@inject asimplevectors.Services.asimplevectorsClient Client
+@inject ILogger<Home> Logger
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Spaces</PageTitle>
+
+<h1>Spaces</h1>
+
+<p>This component demonstrates managing vector spaces.</p>
+
+<button class="btn btn-primary mb-3" @onclick="ShowCreateSpaceModal">New Space</button>
+
+@if (showCreateModal)
+{
+    <div class="dimming"></div>
+}
+
+@if (spaces == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Created</th>
+                <th>Updated</th>
+                <th>Description</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var space in spaces)
+            {
+                <tr>
+                    <td><a href="@($"/space/{space.Name}")">@space.Name</a></td>
+                    <td>@DateTimeOffset.FromUnixTimeSeconds(space.CreatedTimeUtc).UtcDateTime</td>
+                    <td>@DateTimeOffset.FromUnixTimeSeconds(space.UpdatedTimeUtc).UtcDateTime</td>
+                    <td>@space.Description</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteSpace(space.Name)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (showCreateModal)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Space</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateSpaceModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="spaceName" class="form-label">Space Name</label>
+                        <input type="text" id="spaceName" class="form-control" @bind="newSpace.Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <input type="text" id="description" class="form-control" @bind="newSpace.Description" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="dimension" class="form-label">Dimension (Optional)</label>
+                        <input type="number" id="dimension" class="form-control" @bind="newSpace.Dimension" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="metric" class="form-label">Metric (Optional)</label>
+                        <select id="metric" class="form-control" @bind="newSpace.Metric">
+                            <option value="">Select a metric</option>
+                            <option value="l2">L2</option>
+                            <option value="cosine">Cosine</option>
+                            <option value="inner_product">Inner Product</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @onclick="CreateSpace">Create</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCreateSpaceModal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+<script src="js/dropZone.js"></script>
+
+@code {
+    private List<asimplevectors.Models.SpaceResponse>? spaces;
+    private bool showCreateModal = false;
+    private asimplevectors.Models.SpaceRequest newSpace = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSpacesAsync();
+    }
+
+    private async Task LoadSpacesAsync()
+    {
+        try
+        {
+            var response = await Client.ListSpacesAsync();
+            spaces = response.Values.ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error loading spaces: {ex.Message}");
+        }
+    }
+
+    private async Task ShowCreateSpaceModal()
+    {
+        Logger.LogInformation("ShowCreateSpaceModal called.");
+        showCreateModal = true;
+        newSpace = new asimplevectors.Models.SpaceRequest();
+        StateHasChanged();
+    }
+
+    private async Task CloseCreateSpaceModal()
+    {
+        Logger.LogInformation("CloseCreateSpaceModal called.");
+        showCreateModal = false;
+        StateHasChanged();
+    }
+
+    private async Task CreateSpace()
+    {
+        try
+        {
+            newSpace.Name = newSpace.Name?.Trim();
+
+            if (string.IsNullOrWhiteSpace(newSpace.Name) || !IsValidSpaceName(newSpace.Name))
+            {
+                Logger.LogWarning("Invalid input: Space Name is missing or contains invalid characters.");
+                await ShowErrorMessageAsync("Invalid space name. Only alphanumeric characters, '_', and '-' are allowed.");
+                return;
+            }
+
+            Logger.LogInformation($"Creating space: {newSpace.Name}");
+            await Client.CreateSpaceAsync(newSpace);
+            await LoadSpacesAsync();
+            CloseCreateSpaceModal();
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Conflict)
+        {
+            Logger.LogWarning("Space name already exists.");
+            await ShowErrorMessageAsync("Space name already exists. Please choose a different name.");
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.BadRequest)
+        {
+            Logger.LogWarning("Invalid space name format.");
+            await ShowErrorMessageAsync("Invalid space name format. Only alphanumeric characters, '_', and '-' are allowed.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error creating space: {ex.Message}");
+        }
+    }
+
+    private bool IsValidSpaceName(string name)
+    {
+        return name.All(c => char.IsLetterOrDigit(c) || c == '_' || c == '-');
+    }
+
+    private async Task ShowErrorMessageAsync(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("alert", message);
+    }
+
+    private async Task DeleteSpace(string spaceName)
+    {
+        if (await ConfirmAsync($"Are you sure you want to delete the space with name '{spaceName}'?"))
+        {
+            try
+            {
+                Logger.LogInformation($"Deleting space: {spaceName}");
+                await Client.DeleteSpaceAsync(spaceName);
+                spaces = spaces?.Where(s => s.Name != spaceName).ToList();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError($"Error deleting space: {ex.Message}");
+            }
+        }
+    }
+
+    private async Task<bool> ConfirmAsync(string message)
+    {
+        Logger.LogInformation($"Confirmation requested: {message}");
+        return await Task.FromResult(true);
+    }
+}

@@ -1,0 +1,255 @@
+@page "/space/{spaceName}/keyvalue"
+@rendermode RenderMode.InteractiveServer
+@inject asimplevectors.Services.asimplevectorsClient Client
+@inject ILogger<KeyValue> Logger
+
+<PageTitle>KeyValue</PageTitle>
+
+<h3>Key-Value for @spaceName</h3>
+
+@if (showCreateModal || showEditModal)
+{
+    <div class="dimming"></div>
+}
+
+@if (showCreateModal)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Key-Value</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="key" class="form-label">Key</label>
+                        <input type="text" id="key" class="form-control" @bind="newKey" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="value" class="form-label">Value</label>
+                        <textarea id="value" class="form-control" @bind="newValue"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @onclick="CreateKeyValue">Create</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCreateModal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showEditModal)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Key-Value</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="editValue" class="form-label">Value</label>
+                        <textarea id="editValue" class="form-control" @bind="editValue"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @onclick="UpdateKeyValue">Update</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseEditModal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <p class="mb-0">Total Keys: @totalKeys</p>
+        <button class="btn btn-primary" @onclick="ShowCreateModal">Create Key</button>
+    </div>
+
+@if (keys != null)
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Key</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var key in keys)
+            {
+                <tr>
+                    <td><a @onclick="() => ShowEditModal(key)">@key</a></td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" @onclick="() => DeleteKeyValue(key)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        <button class="btn btn-secondary" @onclick="PreviousPage" disabled="@(!HasPreviousPage)">Previous</button>
+        <span>Page @currentPage of @totalPages</span>
+        <button class="btn btn-secondary" @onclick="NextPage" disabled="@(!HasNextPage)">Next</button>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string spaceName { get; set; }
+
+    private asimplevectors.Models.KeyValueResponse? keyValue;
+    private List<string>? keys;
+    private string newKey;
+    private string newValue;
+    private string editKey;
+    private string editValue;
+    private bool showCreateModal = false;
+    private bool showEditModal = false;
+
+    private int start = 0;
+    private int limit = 100;
+    private int totalKeys = 0;
+    private int currentPage = 1;
+    private int totalPages = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ListKeys();
+    }
+
+    private void ShowCreateModal()
+    {
+        showCreateModal = true;
+    }
+
+    private void CloseCreateModal()
+    {
+        showCreateModal = false;
+    }
+
+    private void ShowEditModal(string key)
+    {
+        Logger.LogInformation($"ShowEditModal Called: {key}");
+
+        editKey = key;
+        LoadKeyValue(key);
+        showEditModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadKeyValue(string key)
+    {
+        try
+        {
+            var keyValue = await Client.GetKeyValueAsync(spaceName, key);
+            editValue = keyValue;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error loading key-value: {ex.Message}");
+        }
+    }
+
+    private async Task CreateKeyValue()
+    {
+        Logger.LogInformation($"CreateKeyValue Called: {newKey}={newValue}");
+
+        try
+        {
+            var keyName = newKey;
+            var keyValueData = new asimplevectors.Models.KeyValueRequest { Text = newValue };
+            await Client.PutKeyValueAsync(spaceName, keyName, keyValueData);
+            Logger.LogInformation($"Key '{keyName}' created successfully.");
+            newKey = string.Empty;
+            newValue = string.Empty;
+            showCreateModal = false;
+            await ListKeys();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error creating key-value: {ex.Message}");
+        }
+    }
+
+    private async Task UpdateKeyValue()
+    {
+        Logger.LogInformation($"UpdateKeyValue Called: {editKey}={editValue}");
+
+        try
+        {
+            var keyValueData = new asimplevectors.Models.KeyValueRequest { Text = editValue };
+            await Client.PutKeyValueAsync(spaceName, editKey, keyValueData);
+            Logger.LogInformation($"Key '{editKey}' updated successfully.");
+            showEditModal = false;
+            await ListKeys();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error updating key-value: {ex.Message}");
+        }
+    }
+
+    private async Task ListKeys()
+    {
+        try
+        {
+            var keysResponse = await Client.ListKeysAsync(spaceName, start, limit);
+            keys = keysResponse.Keys.ToList();
+            totalKeys = keysResponse.TotalCount;
+            totalPages = (int)Math.Ceiling((double)totalKeys / limit);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error listing keys: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteKeyValue(string keyName)
+    {
+        try
+        {
+            await Client.DeleteKeyValueAsync(spaceName, keyName);
+            Logger.LogInformation($"Key '{keyName}' deleted successfully.");
+            await ListKeys();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error deleting key-value: {ex.Message}");
+        }
+    }
+
+    private bool HasPreviousPage => currentPage > 1;
+    private bool HasNextPage => currentPage < totalPages;
+
+    private async Task PreviousPage()
+    {
+        if (HasPreviousPage)
+        {
+            start -= limit;
+            currentPage--;
+            await ListKeys();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (HasNextPage)
+        {
+            start += limit;
+            currentPage++;
+            await ListKeys();
+        }
+    }
+}

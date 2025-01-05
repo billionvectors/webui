@@ -1,0 +1,245 @@
+@page "/space/{spaceName}/"
+@page "/space/{spaceName}/version"
+@rendermode RenderMode.InteractiveServer
+@inject asimplevectors.Services.asimplevectorsClient Client
+@inject ILogger<Versions> Logger
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Versions</PageTitle>
+
+<h3>Versions for @spaceName</h3>
+
+@if (versions == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <p class="mb-0">Total Versions: @totalVersions</p>
+        <button class="btn btn-primary mb-3" @onclick="ShowCreateVersionModal">New Version</button>
+    </div>
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Id</th>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Default</th>
+                <th>Tag</th>
+                <th>Created</th>
+                <th>Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var version in versions)
+            {
+                <tr>
+                    <td>@version.Id</td>
+                    <td><a href="/space/@spaceName/version/@version.Id/vector">@version.Name</a></td>
+                    <td>@version.Description</td>
+                    <td>@(version.IsDefault ? "O" : "")</td>
+                    <td>@version.Tag</td>
+                    <td>@DateTimeOffset.FromUnixTimeSeconds(version.CreatedTimeUtc).UtcDateTime</td>
+                    <td>@DateTimeOffset.FromUnixTimeSeconds(version.UpdatedTimeUtc).UtcDateTime</td>
+                    <td>
+                        <button class="btn btn-danger" @onclick="() => ConfirmDeleteVersion(version)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        <button class="btn btn-secondary" @onclick="PreviousPage" disabled="@(!HasPreviousPage)">Previous</button>
+        <span>Page @currentPage of @totalPages</span>
+        <button class="btn btn-secondary" @onclick="NextPage" disabled="@(!HasNextPage)">Next</button>
+    </div>
+}
+
+@if (showCreateVersionModal)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Version</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateVersionModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="versionName" class="form-label">Name</label>
+                        <input type="text" id="versionName" class="form-control" @bind="newVersion.Name" />
+                    </div>
+                    <div class="mb-3">
+                        <label for="versionDescription" class="form-label">Description</label>
+                        <input type="text" id="versionDescription" class="form-control" @bind="newVersion.Description" />
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" id="setAsDefault" class="form-check-input" @bind="newVersion.IsDefault" />
+                        <label for="setAsDefault" class="form-check-label">Set As Default</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="versionTag" class="form-label">Tag</label>
+                        <input type="text" id="versionTag" class="form-control" @bind="newVersion.Tag" />
+                    </div>
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" id="cloneFromOtherVersion" class="form-check-input" @bind="cloneFromOtherVersion" />
+                        <label for="cloneFromOtherVersion" class="form-check-label">Clone From Other Version</label>
+                    </div>
+                    @if (cloneFromOtherVersion)
+                    {
+                        <div class="mb-3">
+                            <label for="cloneVersionId" class="form-label">Version Id</label>
+                            <select id="cloneVersionId" class="form-control" @bind="cloneVersionId">
+                                <option value="">Select a version</option>
+                                @foreach (var version in versions)
+                                {
+                                    <option value="@version.Id">@version.Id</option>
+                                }
+                            </select>
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @onclick="CreateVersion">Create</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCreateVersionModal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string spaceName { get; set; }
+
+    private List<asimplevectors.Models.VersionInfo>? versions;
+    private int start = 0;
+    private int limit = 10;
+    private int totalVersions = 0;
+    private int currentPage = 1;
+    private int totalPages = 1;
+    private bool showCreateVersionModal = false;
+    private asimplevectors.Models.VersionRequest newVersion = new();
+    private bool cloneFromOtherVersion = false;
+    private int cloneVersionId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVersionsAsync();
+    }
+
+    private async Task LoadVersionsAsync()
+    {
+        try
+        {
+            var response = await Client.ListVersionsAsync(spaceName, start, limit);
+            versions = response.Values.ToList();
+            totalVersions = response.TotalCount;
+            totalPages = (int)Math.Ceiling((double)totalVersions / limit);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error loading versions: {ex.Message}");
+        }
+    }
+
+    private bool HasPreviousPage => currentPage > 1;
+    private bool HasNextPage => currentPage < totalPages;
+
+    private async Task PreviousPage()
+    {
+        if (HasPreviousPage)
+        {
+            start -= limit;
+            currentPage--;
+            await LoadVersionsAsync();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (HasNextPage)
+        {
+            start += limit;
+            currentPage++;
+            await LoadVersionsAsync();
+        }
+    }
+
+    private async Task ShowCreateVersionModal()
+    {
+        Logger.LogInformation("ShowCreateVersionModal called.");
+        showCreateVersionModal = true;
+        newVersion = new asimplevectors.Models.VersionRequest();
+        cloneFromOtherVersion = false;
+        StateHasChanged();
+    }
+
+    private async Task CloseCreateVersionModal()
+    {
+        Logger.LogInformation("CloseCreateVersionModal called.");
+        showCreateVersionModal = false;
+        StateHasChanged();
+    }
+
+    private async Task CreateVersion()
+    {
+        try
+        {
+            newVersion.Name = newVersion.Name?.Trim();
+
+            if (string.IsNullOrWhiteSpace(newVersion.Name))
+            {
+                Logger.LogWarning("Invalid input: Version Name is missing.");
+                await ShowErrorMessageAsync("Version name is required.");
+                return;
+            }
+
+            Logger.LogInformation($"Creating version: {newVersion.Name}");
+            await Client.CreateVersionAsync(spaceName, newVersion);
+            await LoadVersionsAsync();
+            CloseCreateVersionModal();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error creating version: {ex.Message}");
+        }
+    }
+
+    private async Task ShowErrorMessageAsync(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("alert", message);
+    }
+
+    private async Task ConfirmDeleteVersion(asimplevectors.Models.VersionInfo version)
+    {
+        if (version.IsDefault)
+        {
+            bool confirm = await JSRuntime.InvokeAsync<bool>("confirm", "This version is set as default. Are you sure you want to delete it?");
+            if (!confirm)
+            {
+                return;
+            }
+        }
+        await DeleteVersion(version.Id);
+    }
+
+    private async Task DeleteVersion(int versionId)
+    {
+        try
+        {
+            Logger.LogInformation($"Deleting version: {versionId}");
+            await Client.DeleteVersionAsync(spaceName, versionId);
+            await LoadVersionsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error deleting version: {ex.Message}");
+        }
+    }
+}
