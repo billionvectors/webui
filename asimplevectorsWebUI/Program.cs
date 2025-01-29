@@ -1,5 +1,6 @@
 using asimplevectorsWebUI;
 using asimplevectorsWebUI.Components;
+using asimplevectorsWebUI.Services;
 using asimplevectors.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.ResponseCompression;
@@ -10,6 +11,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddSignalR();
+builder.Services.AddSingleton<ConfigService>();
 
 builder.Services.AddResponseCompression(opts =>
 {
@@ -19,8 +21,8 @@ builder.Services.AddResponseCompression(opts =>
 
 builder.Services.AddSingleton(sp =>
 {
-    // var baseUrl = builder.Configuration.GetValue<string>("Asimplevectors:BaseUrl") ?? "http://127.0.0.1:21001";
-    var baseUrl = "http://192.168.75.114:21001";
+    var configService = sp.GetRequiredService<ConfigService>();
+    var baseUrl = configService.ServerUrl;
     var logger = sp.GetService<ILogger<asimplevectors.Services.asimplevectorsClient>>();
     return new asimplevectors.Services.asimplevectorsClient(baseUrl, logger);
 });
@@ -32,6 +34,9 @@ builder.Services.AddDataProtection()
     .ProtectKeysWithCertificate(certificate);
 
 var app = builder.Build();
+
+// Add this line to set the ServiceProvider
+Program.ServiceProvider = app.Services;
 
 app.UseResponseCompression();
 
@@ -54,3 +59,8 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+public static partial class Program
+{
+    public static IServiceProvider ServiceProvider { get; set; }
+}

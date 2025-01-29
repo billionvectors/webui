@@ -7,32 +7,6 @@
 
 <h3>Vectors for Version @strVersionId</h3>
 
-<button class="btn btn-primary" @onclick="ShowUploadPopup">Upload Vectors</button>
-
-@if (showUploadPopup)
-{
-    <div class="modal" style="display:block;">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Upload Vectors</h5>
-                    <button type="button" class="close" @onclick="CloseUploadPopup">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <input type="file" @onchange="HandleFileSelected" />
-                    <div class="drop-zone" @ref="dropZoneElement">
-                        <p>Drag & Drop files here</p>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="CloseUploadPopup">Close</button>
-                    <button type="button" class="btn btn-primary" @onclick="UploadFiles">Upload</button>
-                </div>
-            </div>
-        </div>
-    </div>
-}
-
 @if (vectors == null)
 {
     <p><em>Loading...</em></p>
@@ -43,6 +17,10 @@ else if (!vectors.Any())
 }
 else
 {
+    <div>
+        <input type="text" @bind="filter" placeholder="Filter" style="width: 300px;" />
+        <button @onclick="ApplyFilter">Search</button>
+    </div>
     <p>Total Vectors: @totalVectors</p>
     <table class="table">
         <thead>
@@ -84,12 +62,7 @@ else
     private bool canLoadNext => vectors != null && vectors.Count == pageSize;
     private int totalVectors = 0;
     private int totalPages = 1;
-
-    private bool showUploadPopup = false;
-    private List<IBrowserFile> selectedFiles = new List<IBrowserFile>();
-
-    ElementReference dropZoneElement;
-    ElementReference inputFile;
+    private string filter = string.Empty;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -112,10 +85,11 @@ else
 
     private async Task LoadPage()
     {
-        var response = await Client.GetVectorsByVersionAsync(spaceName, versionId, start: (currentPage - 1) * pageSize, limit: pageSize);
+        var response = await Client.GetVectorsByVersionAsync(spaceName, versionId, start: (currentPage - 1) * pageSize, limit: pageSize, filter: filter);
         vectors = response.Vectors.ToList();
         totalVectors = response.TotalCount;
         totalPages = (int)Math.Ceiling((double)totalVectors / pageSize);
+        StateHasChanged();
     }
 
     private async Task LoadPreviousPage()
@@ -138,37 +112,9 @@ else
         }
     }
 
-    private async Task ShowUploadPopup()
+    private async Task ApplyFilter()
     {
-        showUploadPopup = true;
-        StateHasChanged();
-    }
-
-    private async Task CloseUploadPopup()
-    {
-        showUploadPopup = false;
-        selectedFiles.Clear();
-        StateHasChanged();
-    }
-
-    private async Task HandleFileSelected(ChangeEventArgs e)
-    {
-        selectedFiles.Clear();
-        if (e.Value is not null && e.Value is Microsoft.AspNetCore.Components.Forms.IBrowserFile[] files)
-        {
-            selectedFiles.AddRange(files);
-        }
-    }
-
-    private async Task UploadFiles()
-    {
-        foreach (var file in selectedFiles)
-        {
-            var stream = file.OpenReadStream();
-            var buffer = new byte[file.Size];
-            await stream.ReadAsync(buffer, 0, (int)file.Size);
-            // Implement file upload logic here
-        }
-        CloseUploadPopup();
+        currentPage = 1;
+        await LoadPage();
     }
 }

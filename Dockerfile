@@ -10,7 +10,7 @@ WORKDIR /src
 
 # Copy project files
 COPY ["asimplevectorsWebUI/asimplevectorsWebUI.csproj", "./asimplevectorsWebUI/"]
-COPY ["client_api_dev/csharp/asimplevectors/asimplevectors.csproj", "./client_api_dev/csharp/asimplevectors/"]
+COPY ["client_api/csharp/asimplevectors/asimplevectors.csproj", "./client_api/csharp/asimplevectors/"]
 COPY ["certificate.pfx", "/app/certificate.pfx"]
 
 # Restore dependencies

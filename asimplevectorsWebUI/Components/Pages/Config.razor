@@ -1,0 +1,63 @@
+@page "/config"
+@rendermode RenderMode.InteractiveServer
+@inject ILogger<Config> Logger
+@inject IJSRuntime JSRuntime
+@inject asimplevectorsWebUI.Services.ConfigService ConfigService
+@inject asimplevectors.Services.asimplevectorsClient Client
+
+<PageTitle>Configuration</PageTitle>
+
+<h1>Configuration</h1>
+
+<p>This page allows you to configure the server URL.</p>
+
+<div class="mb-3">
+    <label for="serverUrl" class="form-label">Server URL</label>
+    <input type="text" id="serverUrl" class="form-control" @bind="serverUrl" />
+</div>
+<button class="btn btn-primary" @onclick="SaveConfig">Save</button>
+
+@code {
+    private string serverUrl = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        serverUrl = ConfigService.ServerUrl;
+    }
+
+    private async Task SaveConfig()
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(serverUrl))
+            {
+                Logger.LogWarning("Server URL is empty.");
+                await ShowErrorMessageAsync("Server URL cannot be empty.");
+                return;
+            }
+
+            serverUrl = serverUrl.Trim();
+            ConfigService.SaveConfig(serverUrl);
+
+            Client.BaseUrl = serverUrl;
+
+            Logger.LogInformation("Configuration saved successfully.");
+            await ShowSuccessMessageAsync("Configuration saved successfully.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error saving configuration: {ex.Message}");
+            await ShowErrorMessageAsync("Error saving configuration.");
+        }
+    }
+
+    private async Task ShowErrorMessageAsync(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("alert", message);
+    }
+
+    private async Task ShowSuccessMessageAsync(string message)
+    {
+        await JSRuntime.InvokeVoidAsync("alert", message);
+    }
+}

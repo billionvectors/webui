@@ -12,7 +12,31 @@
 
 <p>This component demonstrates managing snapshots.</p>
 
-<button class="btn btn-primary mb-3" @onclick="ShowCreateSnapshotModal">Create Snapshot</button>
+<div class="d-flex mb-3">
+    <button class="btn btn-primary me-2" @onclick="ShowCreateSnapshotModal">Create Snapshot</button>
+    <button class="btn btn-primary" @onclick="ShowUploadPopup">Upload Snapshot</button>
+</div>
+
+@if (showUploadPopup)
+{
+    <div class="modal" style="display:block;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upload Snapshot</h5>
+                    <button type="button" class="close" @onclick="CloseUploadPopup">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <InputFile OnChange="HandleFileSelected" multiple />
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseUploadPopup">Close</button>
+                    <button type="button" class="btn btn-primary" @onclick="UploadFiles">Upload</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 @if (snapshots == null)
 {
@@ -66,6 +90,9 @@ else
     private List<asimplevectors.Models.SnapshotInfo>? snapshots;
     private bool showCreateSnapshotModal = false;
     private asimplevectors.Models.CreateSnapshotRequest newSnapshot = new();
+
+    private bool showUploadPopup = false;
+    private List<Microsoft.AspNetCore.Components.Forms.IBrowserFile> selectedFiles = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -169,5 +196,59 @@ else
         {
             Logger.LogError($"Error downloading snapshot: {ex.Message}");
         }
+    }
+
+    private async Task ShowUploadPopup()
+    {
+        showUploadPopup = true;
+        StateHasChanged();
+    }
+
+    private async Task CloseUploadPopup()
+    {
+        showUploadPopup = false;
+        selectedFiles.Clear();
+        StateHasChanged();
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        selectedFiles.Clear();
+        foreach (var file in e.GetMultipleFiles())
+        {
+            selectedFiles.Add(file);
+        }
+    }
+
+    private async Task UploadFiles()
+    {
+        foreach (var file in selectedFiles)
+        {
+            var stream = file.OpenReadStream();
+            var buffer = new byte[file.Size];
+            await stream.ReadAsync(buffer, 0, (int)file.Size);
+            
+            Logger.LogInformation($"Uploading file: {file.Name}, Size: {file.Size} bytes");
+
+            var timestamp = DateTime.Now.ToString("yyyyMMddHHmm");
+            var tempFolder = Path.Combine("/data", "temp_" + timestamp);
+            if (!Directory.Exists(tempFolder))
+            {
+                Directory.CreateDirectory(tempFolder);
+            }
+
+            var filePath = Path.Combine(tempFolder, file.Name);
+            await using var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+            await fileStream.WriteAsync(buffer, 0, buffer.Length);
+            Logger.LogInformation($"File saved to: {filePath}");
+
+            // Upload the saved file to the server
+            var fileInfo = new FileInfo(filePath);
+            await Client.UploadSnapshotAsync(fileInfo);
+            Logger.LogInformation($"File uploaded as: {filePath}");
+        }
+        
+        await LoadSnapshotsAsync(); // Refresh the page
+        CloseUploadPopup();
     }
 }

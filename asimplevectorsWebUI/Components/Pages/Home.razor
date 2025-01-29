@@ -3,6 +3,7 @@
 @inject asimplevectors.Services.asimplevectorsClient Client
 @inject ILogger<Home> Logger
 @inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
 
 <PageTitle>Spaces</PageTitle>
 
@@ -99,6 +100,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (string.IsNullOrEmpty(Client.BaseUrl) || Client == null)
+        {
+            Logger.LogWarning("Base URL or Client is null. Redirecting to Config page.");
+            NavigationManager.NavigateTo("/config");
+            return;
+        }
+
         await LoadSpacesAsync();
     }
 
