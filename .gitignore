@@ -20,7 +20,6 @@
 !.git/packed-refs
 !.git/refs/heads/**
 *.log
-*.zip
 Cargo.lock
 *DB/
 **/temp/
@@ -42,3 +41,4 @@ download
 install_dependency_dev.sh
 .env
 Dockerfile_dev
+private.key
