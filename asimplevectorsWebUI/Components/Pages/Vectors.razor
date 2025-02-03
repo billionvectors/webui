@@ -27,6 +27,7 @@ else
                 <th>Id</th>
                 <th>Data</th>
                 <th>Metadata</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -36,6 +37,12 @@ else
                     <td>@vector.Id</td>
                     <td>@(vector.Data.Length > 100 ? string.Join(", ", vector.Data.Take(100)) + "..." : string.Join(", ", vector.Data))</td>
                     <td>@string.Join(", ", ((Dictionary<string, object>)vector.Metadata).Select(kv => $"{kv.Key}: {kv.Value}"))</td>
+                    <td>
+                        <!--
+                        <button class="btn btn-warning" @onclick="() => EditVector(vector.Id)">Edit</button>
+                        <button class="btn btn-danger" @onclick="() => DeleteVector(vector.Id)">Delete</button>
+                        -->
+                    </td>
                 </tr>
             }
         </tbody>
@@ -199,6 +206,21 @@ else
         Logger.LogInformation("Vector created successfully.");
 
         showCreateVectorModal = false;
+        await LoadVectors();
+        StateHasChanged();
+    }
+
+    private async Task EditVector(int vectorId)
+    {
+        Logger.LogInformation($"EditVector called for vectorId: {vectorId}");
+        // todo: implement edit vector
+    }
+
+    private async Task DeleteVector(int vectorId)
+    {
+        Logger.LogInformation($"DeleteVector called for vectorId: {vectorId}");
+        // todo: implement delete vector
+
         await LoadVectors();
         StateHasChanged();
     }

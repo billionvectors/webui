@@ -1,0 +1,76 @@
+@page "/security"
+@rendermode RenderMode.InteractiveServer
+@inject asimplevectors.Services.asimplevectorsClient Client
+@inject ILogger<Security> Logger
+@inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
+@using asimplevectors.Models
+
+<PageTitle>Security</PageTitle>
+
+<h1>Security</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Token</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var token in tokens)
+        {
+            <tr>
+                <td>@token.Token</td>
+                <td>
+                    <button @onclick="() => EditToken(token.Token)">Edit</button>
+                    <button @onclick="() => DeleteToken(token.Token)">Delete</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<button @onclick="CreateToken">Create New Token</button>
+
+@code {
+    private List<TokenDetails> tokens = new List<TokenDetails>();
+    private RbacTokenRequest newTokenRequest = new RbacTokenRequest();
+    private RbacTokenRequest editTokenRequest = new RbacTokenRequest();
+    private string editToken;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTokens();
+    }
+
+    private async Task LoadTokens()
+    {
+        var response = await Client.ListRbacTokensAsync();
+        tokens = response.Tokens;
+    }
+
+    private async Task CreateToken()
+    {
+        await Client.CreateRbacTokenAsync(newTokenRequest);
+        await LoadTokens();
+    }
+
+    private async Task EditToken(string token)
+    {
+        editToken = token;
+        // Load the token details into editTokenRequest if needed
+    }
+
+    private async Task UpdateToken()
+    {
+        await Client.UpdateRbacTokenAsync(editToken, editTokenRequest);
+        await LoadTokens();
+    }
+
+    private async Task DeleteToken(string token)
+    {
+        await Client.DeleteRbacTokenAsync(token);
+        await LoadTokens();
+    }
+}

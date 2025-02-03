@@ -29,12 +29,12 @@
                         <input type="number" id="nodeId" class="form-control" @bind="nodeId" />
                     </div>
                     <div class="mb-3">
-                        <label for="nodeAddress" class="form-label">Node Address</label>
-                        <input type="text" id="nodeAddress" class="form-control" @bind="nodeAddress" />
+                        <label for="nodeAddress" class="form-label">API Addr</label>
+                        <input type="text" id="nodeApiAddr" class="form-control" @bind="nodeApiAddr" />
                     </div>
                     <div class="mb-3">
-                        <label for="nodePort" class="form-label">Node Port</label>
-                        <input type="text" id="nodePort" class="form-control" @bind="nodePort" />
+                        <label for="nodePort" class="form-label">RPC Addr</label>
+                        <input type="text" id="nodeRpcAddr" class="form-control" @bind="nodeRpcAddr" />
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -45,16 +45,16 @@
         </div>
     </div>
 }
-
 @if (metrics != null)
 {
     <table class="table">
         <thead>
             <tr>
                 <th>Node ID</th>
-                <th>RPC Address</th>
                 <th>API Address</th>
+                <th>RPC Address</th>
                 <th>Leader</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -62,9 +62,12 @@
             {
                 <tr>
                     <td>@node.Key</td>
-                    <td>@node.Value.RpcAddr</td>
                     <td>@node.Value.ApiAddr</td>
+                    <td>@node.Value.RpcAddr</td>
                     <td>@(metrics.Vote.LeaderId.NodeId == node.Key ? "O" : "")</td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" @onclick="() => DetachNode(node.Key)">Detach</button>
+                    </td>
                 </tr>
             }
         </tbody>
@@ -76,8 +79,8 @@
     private string clusterName;
     private string description;
     private int nodeId;
-    private string nodeAddress;
-    private string nodePort;
+    private string nodeApiAddr;
+    private string nodeRpcAddr;
     private ClusterMetricsResponse metrics;
 
     protected override async Task OnInitializedAsync()
@@ -124,10 +127,12 @@
     {
         try
         {
-            Logger.LogInformation($"Adding node: {nodeId} at {nodeAddress}:{nodePort}");
-            await Client.AddLearnerAsync(nodeId, nodeAddress, nodePort);
+            Logger.LogInformation($"Adding node: {nodeId} at apiaddr={nodeApiAddr} / rpcaddr={nodeRpcAddr}");
+            await Client.AddLearnerAsync(nodeId, nodeApiAddr, nodeRpcAddr);
             Logger.LogInformation("Node added successfully.");
             CloseAddNodeModal();
+
+            await LoadClustersAsync();
         }
         catch (Exception ex)
         {
@@ -136,9 +141,28 @@
         }
     }
 
-    private bool IsValidClusterName(string name)
+    private async Task DetachNode(int nodeId)
     {
-        return name.All(c => char.IsLetterOrDigit(c) || c == '_' || c == '-');
+        try
+        {
+            Logger.LogInformation($"Detaching node: {nodeId}");
+            
+            var nodeIds = metrics.MembershipConfig.Membership.Nodes
+                .Where(node => node.Key != nodeId)
+                .Select(node => node.Key)
+                .ToList();
+
+            Logger.LogInformation("Changing cluster membership...");
+            await Client.ChangeMembershipAsync(nodeIds);
+            Logger.LogInformation("Membership changed successfully.");
+            
+            await LoadClustersAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError($"Error detaching node: {ex.Message}");
+            await ShowErrorMessageAsync("Error detaching node. Please try again.");
+        }
     }
 
     private async Task ShowErrorMessageAsync(string message)
