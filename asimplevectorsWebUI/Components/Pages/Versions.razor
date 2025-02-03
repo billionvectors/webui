@@ -4,6 +4,7 @@
 @inject asimplevectors.Services.asimplevectorsClient Client
 @inject ILogger<Versions> Logger
 @inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
 
 <PageTitle>Versions</PageTitle>
 
@@ -129,6 +130,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (Client == null || string.IsNullOrEmpty(Client.BaseUrl))
+        {
+            Logger.LogWarning("Base URL or Client is null. Redirecting to Config page.");
+            NavigationManager.NavigateTo("/config");
+            return;
+        }
+
         await LoadVersionsAsync();
     }
 

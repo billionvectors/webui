@@ -6,20 +6,21 @@ This is the WebUI for asimplevectors.
 
 [asimplevectors](https://docs.asimplevectors.com/) is a high-performance vector database optimized for retrieval-augmented generation (RAG) vector database. It provides fast and reliable clustering through Rust and the Raft consensus protocol, while leveraging SQLite3 for easy data management. Additionally, the database includes built-in key-value storage for managing original document data within the vector database.
 
-## Prerequisites
-
-Before using the WebUI, you need to install and run asimplevectors.
-
-### asimplevectors: Quick Install from Docker
-
-To download the latest version of the asimplevectors Docker image, use the following:
-
+## Quick Start
+To download the latest version of the asimplevectors Docker image, use the following
 ```bash
 mkdir -p $(pwd)/data
-docker pull billionvectors/asimplevectors:latest
-docker run -v $(pwd)/data:/app/data -p 21001:21001 -p 21002:21002 billionvectors/asimplevectors:latest
-curl --silent "127.0.0.1:21001/cluster/init" -H "Content-Type: application/json" -d '{}'
+docker pull billionvectors/asimplevectors_webui:latest
+docker run -v $(pwd)/data:/data -p 21080:8080 billionvectors/asimplevectors_webui:latest
 ```
+
+## Quick Start with Docker Compose
+To run both the WebUI and asimplevectors using Docker Compose, try a `docker-compose.yml` file with the following content:
+```bash
+docker-compose up
+```
+
+## Build without Docker
 
 ### Install Dependencies
 
@@ -27,6 +28,14 @@ After installing asimplevectors, run the following script to install the necessa
 
 ```bash
 ./install_dependency.sh
+```
+
+## Install asimplevectors from Docker
+To download the latest version of the asimplevectors Docker image, use the following
+```bash
+mkdir -p $(pwd)/data
+docker pull billionvectors/asimplevectors:latest
+docker run -v $(pwd)/data:/app/data -e ATV_STANDALONE=true -p 21001:21001 -p 21002:21002 billionvectors/asimplevectors:latest
 ```
 
 ## Running the WebUI

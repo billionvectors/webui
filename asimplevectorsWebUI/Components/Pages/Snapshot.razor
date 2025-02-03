@@ -3,6 +3,7 @@
 @inject asimplevectors.Services.asimplevectorsClient Client
 @inject ILogger<Snapshot> Logger
 @inject IJSRuntime JSRuntime
+@inject NavigationManager NavigationManager
 @using System.IO
 @using System.IO.Compression
 
@@ -96,6 +97,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        if (Client == null || string.IsNullOrEmpty(Client.BaseUrl))
+        {
+            Logger.LogWarning("Base URL or Client is null. Redirecting to Config page.");
+            NavigationManager.NavigateTo("/config");
+            return;
+        }
+
         await LoadSnapshotsAsync();
     }
 

@@ -2,6 +2,7 @@
 @rendermode RenderMode.InteractiveServer
 @inject asimplevectors.Services.asimplevectorsClient Client
 @inject ILogger<KeyValue> Logger
+@inject NavigationManager NavigationManager
 
 <PageTitle>KeyValue</PageTitle>
 
@@ -119,6 +120,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (Client == null || string.IsNullOrEmpty(Client.BaseUrl))
+        {
+            Logger.LogWarning("Base URL or Client is null. Redirecting to Config page.");
+            NavigationManager.NavigateTo("/config");
+            return;
+        }
+
         await ListKeys();
     }
 

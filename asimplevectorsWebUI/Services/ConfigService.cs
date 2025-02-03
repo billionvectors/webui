@@ -20,6 +20,15 @@ namespace asimplevectorsWebUI.Services
                 var config = JsonSerializer.Deserialize<Config>(configJson);
                 ServerUrl = config?.ServerUrl ?? string.Empty;
             }
+            else
+            {
+                var envServerUrl = Environment.GetEnvironmentVariable("SERVER_URL");
+                if (!string.IsNullOrEmpty(envServerUrl))
+                {
+                    ServerUrl = envServerUrl;
+                    SaveConfig(envServerUrl);
+                }
+            }
         }
 
         public void SaveConfig(string serverUrl)

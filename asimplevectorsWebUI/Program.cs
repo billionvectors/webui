@@ -30,7 +30,7 @@ builder.Services.AddSingleton(sp =>
 var certificate = new X509Certificate2("/app/certificate.pfx", "billionvectors");
 
 builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(@"/keys"))
+    .PersistKeysToFileSystem(new DirectoryInfo(@"/data/keys"))
     .ProtectKeysWithCertificate(certificate);
 
 var app = builder.Build();

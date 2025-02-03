@@ -4,6 +4,8 @@
 @inject asimplevectors.Services.asimplevectorsClient Client
 @using Microsoft.AspNetCore.Components.Web
 @inject IJSRuntime JSRuntime
+@inject ILogger<Vectors> Logger
+@inject NavigationManager NavigationManager
 
 <h3>Vectors for Version @strVersionId</h3>
 
@@ -11,15 +13,12 @@
 {
     <p><em>Loading...</em></p>
 }
-else if (!vectors.Any())
-{
-    <p>No vectors found.</p>
-}
 else
 {
-    <div>
-        <input type="text" @bind="filter" placeholder="Filter" style="width: 300px;" />
-        <button @onclick="ApplyFilter">Search</button>
+    <div class="d-flex align-items-center mb-3">
+        <input type="text" @bind="filter" placeholder="Metadata Filter (e.g., status == active)" class="form-control me-2" style="width: 500px;" />
+        <button class="btn btn-primary" @onclick="ApplyFilter">Search</button>
+        <button class="btn btn-primary ms-2" @onclick="ShowCreateVectorModal">New Vector</button>
     </div>
     <p>Total Vectors: @totalVectors</p>
     <table class="table">
@@ -35,7 +34,7 @@ else
             {
                 <tr>
                     <td>@vector.Id</td>
-                    <td>@string.Join(", ", vector.Data)</td>
+                    <td>@(vector.Data.Length > 100 ? string.Join(", ", vector.Data.Take(100)) + "..." : string.Join(", ", vector.Data))</td>
                     <td>@string.Join(", ", ((Dictionary<string, object>)vector.Metadata).Select(kv => $"{kv.Key}: {kv.Value}"))</td>
                 </tr>
             }
@@ -45,6 +44,34 @@ else
         <button class="btn btn-secondary" @onclick="LoadPreviousPage" disabled="@(!canLoadPrevious)">Previous</button>
         <span>Page @currentPage of @totalPages</span>
         <button class="btn btn-secondary" @onclick="LoadNextPage" disabled="@(!canLoadNext)">Next</button>
+    </div>
+}
+
+@if (showCreateVectorModal)
+{
+    <div class="modal show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create New Vector</h5>
+                    <button type="button" class="btn-close" @onclick="CloseCreateVectorModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="vectorData" class="form-label">Vector Data (comma-separated values)</label>
+                        <textarea id="vectorData" class="form-control" @bind="newVectorData" rows="10"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="vectorMetadata" class="form-label">Metadata (format: key1: value1, key2: value2, ...)</label>
+                        <input type="text" id="vectorMetadata" class="form-control" @bind="newVectorMetadata" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" @onclick="CreateVector">Create</button>
+                    <button type="button" class="btn btn-secondary" @onclick="CloseCreateVectorModal">Cancel</button>
+                </div>
+            </div>
+        </div>
     </div>
 }
 
@@ -63,6 +90,20 @@ else
     private int totalVectors = 0;
     private int totalPages = 1;
     private string filter = string.Empty;
+
+    private bool showCreateVectorModal = false;
+    private string newVectorData;
+    private string newVectorMetadata;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Client == null || string.IsNullOrEmpty(Client.BaseUrl))
+        {
+            Logger.LogWarning("Base URL or Client is null. Redirecting to Config page.");
+            NavigationManager.NavigateTo("/config");
+            return;
+        }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -116,5 +157,49 @@ else
     {
         currentPage = 1;
         await LoadPage();
+    }
+
+    private async Task ShowCreateVectorModal()
+    {
+        Logger.LogInformation("ShowCreateVectorModal called.");
+        
+        newVectorData = string.Empty;
+        newVectorMetadata = string.Empty;
+
+        showCreateVectorModal = true;
+        StateHasChanged();
+    }
+
+    private async Task CloseCreateVectorModal()
+    {
+        showCreateVectorModal = false;
+        StateHasChanged();
+    }
+
+    private async Task CreateVector()
+    {
+        Logger.LogInformation("CreateVector called.");
+
+        VectorData newVector = new VectorData();
+        newVector.Data = newVectorData.Split(new[] { ',', ' ' }, StringSplitOptions.RemoveEmptyEntries)
+                                      .Select(double.Parse)
+                                      .Select(d => (float)d)
+                                      .ToArray();
+
+        newVector.Metadata = newVectorMetadata.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                              .Select(part => part.Split(':'))
+                                              .ToDictionary(split => split[0].Trim(), split => (object)split[1].Trim());
+
+        var vectorRequest = new VectorRequest
+        {
+            Vectors = new[] { newVector }
+        };
+
+        await Client.UpsertVectorAsync(spaceName, vectorRequest);
+        Logger.LogInformation("Vector created successfully.");
+
+        showCreateVectorModal = false;
+        await LoadVectors();
+        StateHasChanged();
     }
 }
